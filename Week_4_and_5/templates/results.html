@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <title>Hybrid Search Evaluation Results</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 40px;
+            background: #101010;
+            color: white;
+        }
+        h1 {
+           text-align: center;
+           font-size: 1.6rem;
+           color: #4cc9f0;
+           margin-bottom: 0.6rem;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background: #242425;
+            box-shadow: 0 0 10px rgba(63, 61, 61, 0.1);
+        }
+        th, td {
+            padding: 12px;
+            border-bottom: 1px solid #ddd;
+            text-align: middle;
+        }
+        th { background: #211e3e; color: white; }
+        tr.summary-row { background-color: #322f52; font-weight: bold; }
+    </style>
+</head>
+<body>
+<h1>Hybrid Search Evaluation: Recall@3</h1>
+
+<table>
+    <thead>
+        <tr>
+            <th>Query</th>
+            <th>Verified doc_id </th>
+            <th>Semantic Research (doc_ids)</th>
+            <th>Keyword Research (doc_ids)</th>
+            <th>Hybrid Research (doc_ids)</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for row in eval_data.rows %}
+        <tr>
+            <td>{{ row.query }}</td>
+            <td>{{ row.verified | join(', ') }}</td>
+            <td>{{ row.semantic | join(', ') }}</td>
+            <td>{{ row.keyword | join(', ') }}</td>
+            <td>{{ row.hybrid | join(', ') }}</td>
+        </tr>
+        {% endfor %}
+        <tr class="summary-row">
+            <td>Hit Rate @3</td>
+            <td> </td>
+            <td>{{ eval_data.hit_semantic }}</td>
+            <td>{{ eval_data.hit_keyword }}</td>
+            <td>{{ eval_data.hit_hybrid }}</td>
+        </tr>
+    </tbody>
+</table>
+
+</body>
+</html>

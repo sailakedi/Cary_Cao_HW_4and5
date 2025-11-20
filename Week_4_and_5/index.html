@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <title>arXiv cs.CL Hybrid Search Dashboard</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <style>
+    :root {
+      --bg: #0b1220;
+      --panel: #121a2d;
+      --accent: #4cc9f0;
+      --text: #e6eef8;
+      --muted: #9aa6bd;
+      --border: rgba(255, 255, 255, 0.08);
+    }
+
+    body {
+      font-family: Inter, Arial, sans-serif;
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      padding: 20px;
+    }
+
+    h1 {
+      font-size: 1.6rem;
+      color: var(--accent);
+      margin-bottom: 0.4rem;
+    }
+
+    .subtitle {
+      color: var(--muted);
+      margin-bottom: 1.5rem;
+      font-size: 0.9rem;
+    }
+
+    .search-bar {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 1.5rem;
+    }
+
+    input[type="text"] {
+      flex: 1;
+      padding: 10px 12px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: var(--panel);
+      color: var(--text);
+      font-size: 1rem;
+      outline: none;
+    }
+
+    button {
+      background: var(--accent);
+      border: none;
+      color: #000;
+      font-weight: 600;
+      border-radius: 8px;
+      padding: 10px 16px;
+      cursor: pointer;
+      font-size: 1rem;
+    }
+
+    button:hover {
+      opacity: 0.9;
+    }
+
+    #status {
+      color: var(--muted);
+      margin-bottom: 1rem;
+    }
+
+    .results-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 12px;
+    }
+
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 16px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+      display: flex;
+      flex-direction: column;
+      max-height: 85vh;
+      overflow-y: auto;
+    }
+
+    .panel h2 {
+      font-size: 1rem;
+      color: var(--accent);
+      margin-top: 0;
+      margin-bottom: 10px;
+      text-align: center;
+    }
+
+    .card {
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      border-radius: 8px;
+      padding: 10px;
+      background: rgba(255, 255, 255, 0.02);
+      margin-bottom: 10px;
+    }
+
+    .title {
+      font-weight: 600;
+      font-size: 0.95rem;
+      margin-bottom: 4px;
+    }
+
+    .meta {
+      color: var(--muted);
+      font-size: 0.8rem;
+      margin-bottom: 6px;
+    }
+
+    .score {
+      float: right;
+      color: var(--accent);
+      font-size: 0.8rem;
+    }
+
+    .snippet {
+      font-size: 0.9rem;
+      line-height: 1.4;
+      color: var(--text);
+      max-height: 4.2em;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .snippet.expanded {
+      max-height: none;
+    }
+
+    .show-more {
+      color: var(--accent);
+      font-size: 0.8rem;
+      cursor: pointer;
+      margin-top: 5px;
+      display: inline-block;
+    }
+
+    @media (max-width: 800px) {
+      .results-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <h1>arXiv cs.CL Hybrid Search</h1>
+  <div class="subtitle">Compare Semantic (FAISS), Keyword (FTS5), and Hybrid (RRF) retrieval</div>
+
+  <div class="search-bar">
+    <input id="query" type="text" placeholder="Try: Transformer summarization or BERT embeddings..." />
+    <button id="searchBtn">Search</button>
+  </div>
+
+  <div id="status">Enter a query to begin.</div>
+
+  <div class="results-grid">
+    <div class="panel" id="semanticPanel">
+      <h2>Semantic (FAISS)</h2>
+      <div id="semanticResults"></div>
+    </div>
+
+    <div class="panel" id="keywordPanel">
+      <h2>Keyword (FTS5)</h2>
+      <div id="keywordResults"></div>
+    </div>
+
+    <div class="panel" id="hybridPanel">
+      <h2>Hybrid (RRF)</h2>
+      <div id="hybridResults"></div>
+    </div>
+  </div>
+
+  <script>
+    const queryInput = document.getElementById("query");
+    const searchBtn = document.getElementById("searchBtn");
+    const statusDiv = document.getElementById("status");
+
+    const semanticDiv = document.getElementById("semanticResults");
+    const keywordDiv = document.getElementById("keywordResults");
+    const hybridDiv = document.getElementById("hybridResults");
+
+    function clearResults() {
+      semanticDiv.innerHTML = "";
+      keywordDiv.innerHTML = "";
+      hybridDiv.innerHTML = "";
+    }
+
+    function renderResultItem(item, target) {
+      const card = document.createElement("div");
+      card.className = "card";
+
+      const scoreVal = item.score ?? item.fused_score ?? 0;
+
+      const title = document.createElement("div");
+      title.className = "title";
+      title.innerHTML = `<span>${item.title || "Untitled"}</span>
+                         <span class="score">Score: ${scoreVal.toFixed(4)}</span>`;
+
+      const meta = document.createElement("div");
+      meta.className = "meta";
+      meta.textContent = `${item.authors || "Unknown"} • ${item.year || "n.d."} • Doc ID: ${item.doc_id}`;
+
+      const snippet = document.createElement("div");
+      snippet.className = "snippet";
+      snippet.textContent = item.chunk_text || "";
+
+      const toggle = document.createElement("div");
+      toggle.className = "show-more";
+      toggle.textContent = "Show more";
+      toggle.addEventListener("click", () => {
+        snippet.classList.toggle("expanded");
+        toggle.textContent = snippet.classList.contains("expanded")
+          ? "Show less"
+          : "Show more";
+      });
+
+      card.appendChild(title);
+      card.appendChild(meta);
+      card.appendChild(snippet);
+      card.appendChild(toggle);
+
+      target.appendChild(card);
+    }
+
+    async function search() {
+      const q = queryInput.value.trim();
+      if (!q) {
+        statusDiv.textContent = "Please enter a query.";
+        return;
+      }
+
+      statusDiv.textContent = "Searching...";
+      clearResults();
+
+      try {
+        const res = await fetch(`http://127.0.0.1:8000/hybrid_search?q=${encodeURIComponent(q)}&k=5`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+
+        const semanticResults = data.semantic_results || [];
+        const keywordResults = data.keyword_results || [];
+        const hybridResults = data.hybrid_results || data.results || [];
+
+        statusDiv.textContent = `Showing results for "${q}"`;
+
+        if (
+          semanticResults.length === 0 &&
+          keywordResults.length === 0 &&
+          hybridResults.length === 0
+        ) {
+          statusDiv.textContent = "No results found.";
+        }
+
+        semanticResults.forEach(item => renderResultItem(item, semanticDiv));
+        keywordResults.forEach(item => renderResultItem(item, keywordDiv));
+        hybridResults.forEach(item => renderResultItem(item, hybridDiv));
+
+      } catch (err) {
+        console.error(err);
+        statusDiv.textContent = "Error: " + err.message;
+      }
+    }
+
+    searchBtn.addEventListener("click", search);
+    queryInput.addEventListener("keydown", e => {
+      if (e.key === "Enter") search();
+    });
+  </script>
+</body>
+
+</html>
